@@ -9,7 +9,7 @@ def convert_label_list(*t_uplet): # to keep
     ymin, xmin, ymax, xmax = t_uplet
     w = xmax - xmin
     h = ymax - ymin
-    aire = (ymax - ymin) * (xmax - xmin)
+    aire = h * w
     if aire > 1e-3:
         return (xmin + w/2, ymin + h/2, w, h)
 
@@ -35,12 +35,12 @@ def compute_anchors(imag):
     une_liste = []
     picks = random.choices(range(x+1), k=16)
     picks2 = random.choices(range(y+1), k=16)
-    for i, e in enumerate(zip(picks, picks2)): # i is a doulblet
-        if i % 2 == 0:
-            # arbitrary choice that boxes will of dimensions (x+y)/5 x (x+y)/5
-            une_liste.append(e + (int(np.round((x+y)/6)), int(np.round((x+y)/6))))
+    for idx, midpoint in enumerate(zip(picks, picks2)): # i is a doulblet
+        if idx % 2 == 0:
+            # arbitrary choice that boxes will of dimensions (x+y)/6 x (x+y)/6
+            une_liste.append(midpoint + (int(np.round((x+y)/6)), int(np.round((x+y)/6))))
         else:
-            une_liste.append(e + (int(np.round((x+y)/4)), int(np.round((x+y)/4))))
+            une_liste.append(midpoint + (int(np.round((x+y)/4)), int(np.round((x+y)/4))))
     return une_liste
 
 
@@ -104,9 +104,9 @@ def compute_iou(box_p, box_gt):
     
     """
     
-    x_p, y_p, w_p, h_p = box_p #coord of predicted box
+    x_p, y_p, w_p, h_p = box_p #coord of proposed box
     x_gt, y_gt, w_gt, h_gt = box_gt
-    aire_p = h_p * w_p # midpoint not needed BTW
+    aire_p = h_p * w_p 
     aire_gt = h_gt * w_gt
 
     x_inter_min = max(x_p - w_p/2, x_gt - w_gt/2)
@@ -143,25 +143,17 @@ def matching_boxes(liste_p, liste_gt, iou_match=.2): #objectness
     une autre si l'inter est negligeable ou nulle"""
     matches = []
     back = []
-    indices_p = []
-    indices_back = []
-    for idx, i in enumerate(liste_p): #expect often more pred than gt boxes
-        for idx2, j in enumerate(liste_gt): #idx2 donne le rang du label
-            if compute_iou(i, j)[0] >= iou_match : #on a rarement de bon IoU donc on met le seuil bas
-                matches.append(((idx, idx2), np.round(compute_iou(i, j)[0], 2), i)) #on recupere i cad : coord de la pred
-                indices_p.append(idx)
-            elif compute_iou(i, j)[0] == 0 :#et les background combinaisons de la même pred et une autre gt bbox
-                back.append(((idx, idx2), np.round(compute_iou(i, j)[0], 2), i))
-                indices_back.append(idx)
-            else:
-                pass
+    for idx, proposed_bod in enumerate(liste_p): #expect often more pred than gt boxes
+        for idx2, gt_box in enumerate(liste_gt): #idx2 donne le rang du label
+            if compute_iou(proposed_box, gt_box)[0] >= iou_match : #on a rarement de bon IoU donc on met le seuil bas
+                matches.append(((idx, idx2), np.round(compute_iou(proposed_box, gt_box)[0], 2), proposed_box)) #on recupere i cad : coord de la pred
+            elif compute_iou(proposed_box, gt_box)[0] == 0 :#et les background combinaisons de la même pred et une autre gt bbox
+                back.append(((idx, idx2), np.round(compute_iou(proposed_box, gt_box)[0], 2), proposed_box))
                 
     if len(back) >= 2:
         return matches, random.sample(back, 2)
     else:
         return matches, back
-
-
 
 
 
