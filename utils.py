@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import tqdm
 
 #image processing stuff
 
@@ -72,23 +73,25 @@ def produce_crop_list(imag, lisht):
             xmax = x_mid + w/2
         else: #box qui deborde à D
             xmax = x - 1e-3
-        #cropping : note from here we need to ditch using xmid, ymid, w, h since we dont know if box been clipped or not
-        if 1 - 1e-3 <= (ymax - ymin) / (xmax - xmin) <= 1 + 1e-3:
+        # now reassign w, h because boxes dont lie outside frame anymore
+        w = xmax - xmin
+        h = ymax - ymin
+        if 1 - 1e-3 <= h / w <= 1 + 1e-3: #un carré
             crop_img = np.array(imag).copy()[int(ymin):int(ymax), int(xmin):int(xmax)]
-            coord = ((xmax+xmin)/2, (ymax+ymin)/2, xmax - xmin, ymax-ymin)
+            coord = ((xmax+xmin)/2, (ymax+ymin)/2, w, h)
             
-        elif (ymax - ymin) / (xmax - xmin) > 1: #rectangle vertical
+        elif h / w > 1: #rectangle vertical
             #on trace comme un cercle de rayon w/2 pour reconstruire un carré : midpoint doit pas bouger selon axe des y
             crop_img = np.array(imag).copy()[int((ymax+ymin)/2 - (xmax-xmin)/2):int((ymax+ymin)/2 + (xmax-xmin)/2), int(xmin):int(xmax)]
             
-            coord = ((xmax+xmin)/2, (ymax+ymin)/2, xmax - xmin, xmax - xmin) # xmid est recalculé-modifié
+            coord = ((xmax+xmin)/2, (ymax+ymin)/2, w, w) # xmid est recalculé-modifié
        
-        elif(ymax - ymin) / (xmax - xmin) < 1: #rectangle horizontal : midpoint doit pas bouger selon les x
+        elif h / w < 1: #rectangle horizontal : midpoint doit pas bouger selon les x
             
             crop_img = np.array(imag).copy()[int(ymin):int(ymax), int((xmax+xmin)/2 - (ymax-ymin)/2):int((xmax+xmin)/2 + (ymax-ymin)/2)]
-            coord = ((xmax+xmin)/2, (ymax+ymin)/2, ymax-ymin, ymax-ymin) # ymid est recalculé
+            coord = ((xmax+xmin)/2, (ymax+ymin)/2, h, h) # ymid est recalculé
             
-        elif (ymax - ymin) * (xmax - xmin) < 1e-3:
+        elif h * w < 1e-3 : #micro boite
             pass
         else:
             pass
@@ -136,14 +139,13 @@ def compute_iou(box_p, box_gt):
         return 0, None
 
 
-
 def matching_boxes(liste_p, liste_gt, iou_match=.2): #objectness 
     """pour une img, liste_p est une liste des coord de roi, liste_gt une liste des coord des GT associée
     cette fn s'applique pour ces deux listes, output est une liste des intersections au dela d'un objectness threshold fixé,
     une autre si l'inter est negligeable ou nulle"""
     matches = []
     back = []
-    for idx, proposed_bod in enumerate(liste_p): #expect often more pred than gt boxes
+    for idx, proposed_box in enumerate(liste_p): #expect often more pred than gt boxes
         for idx2, gt_box in enumerate(liste_gt): #idx2 donne le rang du label
             if compute_iou(proposed_box, gt_box)[0] >= iou_match : #on a rarement de bon IoU donc on met le seuil bas
                 matches.append(((idx, idx2), np.round(compute_iou(proposed_box, gt_box)[0], 2), proposed_box)) #on recupere i cad : coord de la pred
@@ -155,6 +157,38 @@ def matching_boxes(liste_p, liste_gt, iou_match=.2): #objectness
     else:
         return matches, back
 
+def matching_boxes_new(liste_p, liste_gt, iou_match=.3): 
+    """pour une img, liste_p est une liste des coord de roi, liste_gt une liste des coord des GT 
+    output est une liste des intersections au dela d'un objectness threshold fixé"""
+    some_list = [] # on met dans cette liste les match (pour une img)
+    for idx_p, proposed_box in enumerate(liste_p): # pour une proposition de region...
+        matches = [] # ...on met dans cette liste les match
+        for idx_g, gt_box in enumerate(liste_gt): 
+            if compute_iou(proposed_box, gt_box)[0] >= iou_match: #si on a un match
+                matches.append(((idx_p, idx_g), compute_iou(proposed_box, gt_box)[0], proposed_box))
+        if len(matches) > 0: #ici on veut garder que le meilleur match pour une ROI si +sieurs
+            multiple_m = []
+            for m in matches:
+                multiple_m.append(m[1])
+            rang = np.argmax(multiple_m)
+            some_list.append(matches[rang])
+            
+    return some_list
+    
 
-
-
+def capture_background(liste_p, liste_gt, iou_match=0.1): #objectness 
+    """pour une img, liste_p est une liste des coord de roi, liste_gt une liste des coord des GT associée
+    cette fn liste, pr une img, les ROI qui n'ont pas d'intersection avec AUCUNE GT de l'img"""
+    list_back = []
+    for idx_p, proposed_box in enumerate(liste_p): #pour chaque ROI d'une img
+        back_candidate = [] #une liste par ROI
+        for idx_g, gt_box in enumerate(liste_gt): #on calcule avec toutes les GT possibles
+            if compute_iou(proposed_box, gt_box)[0] <= iou_match : #iou match = 0
+                back_candidate.append(((idx_p, idx_g), compute_iou(proposed_box, gt_box)[0], proposed_box))
+        if len(back_candidate) == len(liste_gt):
+            list_back.append(random.choice(back_candidate))
+        
+    if len(list_back) >= 2:
+        return random.sample(list_back, 2)
+    else:
+        return list_back
