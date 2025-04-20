@@ -104,7 +104,6 @@ def produce_crop_list(imag, lisht):
 def compute_iou(box_p, box_gt):
     """ this function takes two bbox coordinates 4-uplets
     input bbox coordinates format is in xmin, ymin, width, height format
-    
     """
     
     x_p, y_p, w_p, h_p = box_p #coord of proposed box
@@ -139,24 +138,6 @@ def compute_iou(box_p, box_gt):
         return 0, None
 
 
-def matching_boxes(liste_p, liste_gt, iou_match=.2): #objectness 
-    """pour une img, liste_p est une liste des coord de roi, liste_gt une liste des coord des GT associée
-    cette fn s'applique pour ces deux listes, output est une liste des intersections au dela d'un objectness threshold fixé,
-    une autre si l'inter est negligeable ou nulle"""
-    matches = []
-    back = []
-    for idx, proposed_box in enumerate(liste_p): #expect often more pred than gt boxes
-        for idx2, gt_box in enumerate(liste_gt): #idx2 donne le rang du label
-            if compute_iou(proposed_box, gt_box)[0] >= iou_match : #on a rarement de bon IoU donc on met le seuil bas
-                matches.append(((idx, idx2), np.round(compute_iou(proposed_box, gt_box)[0], 2), proposed_box)) #on recupere i cad : coord de la pred
-            elif compute_iou(proposed_box, gt_box)[0] == 0 :#et les background combinaisons de la même pred et une autre gt bbox
-                back.append(((idx, idx2), np.round(compute_iou(proposed_box, gt_box)[0], 2), proposed_box))
-                
-    if len(back) >= 2:
-        return matches, random.sample(back, 2)
-    else:
-        return matches, back
-
 def matching_boxes_new(liste_p, liste_gt, iou_match=.3): 
     """pour une img, liste_p est une liste des coord de roi, liste_gt une liste des coord des GT 
     output est une liste des intersections au dela d'un objectness threshold fixé"""
@@ -172,7 +153,6 @@ def matching_boxes_new(liste_p, liste_gt, iou_match=.3):
                 multiple_m.append(m[1])
             rang = np.argmax(multiple_m)
             some_list.append(matches[rang])
-            
     return some_list
     
 
@@ -187,7 +167,6 @@ def capture_background(liste_p, liste_gt, iou_match=0.1): #objectness
                 back_candidate.append(((idx_p, idx_g), compute_iou(proposed_box, gt_box)[0], proposed_box))
         if len(back_candidate) == len(liste_gt):
             list_back.append(random.choice(back_candidate))
-        
     if len(list_back) >= 2:
         return random.sample(list_back, 2)
     else:
