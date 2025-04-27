@@ -141,8 +141,8 @@ def compute_iou(box_p, box_gt):
 
 def matching_boxes_new(liste_p, liste_gt, iou_match=.3): 
     """pour une img, liste_p est une liste des coord de roi, liste_gt une liste des coord des GT 
-    output est une liste des intersections au dela d'un objectness threshold fixé"""
-    some_list = [] # on met dans cette liste les match (pour une img)
+    output est une liste des ROI pertinentes, une par ROI le cas echeant"""
+    list_relevant = [] # on met dans cette liste les match (pour une img)
     for idx_p, proposed_box in enumerate(liste_p): # pour une proposition de region...
         matches = [] # ...on met dans cette liste les match
         for idx_g, gt_box in enumerate(liste_gt): 
@@ -153,25 +153,25 @@ def matching_boxes_new(liste_p, liste_gt, iou_match=.3):
             for m in matches:
                 multiple_m.append(m[1])
             rang = np.argmax(multiple_m)
-            some_list.append(matches[rang])
+            list_relevant.append(matches[rang])
             
-    return some_list
+    return list_relevant
     
 
 def capture_background(liste_p, liste_gt, iou_match=0.1): #objectness 
     """pour une img, liste_p est une liste des coord de roi, liste_gt une liste des coord des GT associée
-    cette fn liste, pr une img, les ROI qui n'ont pas d'intersection avec AUCUNE GT de l'img"""
+    cette fn retourne, pr une img, listes ROI qui n'ont pas d'intersection avec AUCUNE GT de l'img"""
     list_back = []
     for idx_p, proposed_box in enumerate(liste_p): #pour chaque ROI d'une img
         back_candidate = [] #une liste par ROI
         for idx_g, gt_box in enumerate(liste_gt): #on calcule avec toutes les GT possibles
             if compute_iou(proposed_box, gt_box)[0] <= iou_match : #iou match = 0
                 back_candidate.append(((idx_p, idx_g), compute_iou(proposed_box, gt_box)[0], proposed_box))
-        if len(back_candidate) == len(liste_gt):
-            list_back.append(random.choice(back_candidate))
+        if len(back_candidate) == len(liste_gt):#si aucune intersection avec GT box
+            list_back.append(random.choice(back_candidate)) # un back par ROI maximum
         
     if len(list_back) >= 2:
-        return random.sample(list_back, 2)
+        return random.sample(list_back, 2) # 2 back max par img
     else:
         return list_back
 
