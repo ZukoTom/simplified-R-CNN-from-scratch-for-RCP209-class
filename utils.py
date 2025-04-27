@@ -104,6 +104,7 @@ def produce_crop_list(imag, lisht):
 def compute_iou(box_p, box_gt):
     """ this function takes two bbox coordinates 4-uplets
     input bbox coordinates format is in xmin, ymin, width, height format
+    
     """
     
     x_p, y_p, w_p, h_p = box_p #coord of proposed box
@@ -153,6 +154,7 @@ def matching_boxes_new(liste_p, liste_gt, iou_match=.3):
                 multiple_m.append(m[1])
             rang = np.argmax(multiple_m)
             some_list.append(matches[rang])
+            
     return some_list
     
 
@@ -167,7 +169,34 @@ def capture_background(liste_p, liste_gt, iou_match=0.1): #objectness
                 back_candidate.append(((idx_p, idx_g), compute_iou(proposed_box, gt_box)[0], proposed_box))
         if len(back_candidate) == len(liste_gt):
             list_back.append(random.choice(back_candidate))
+        
     if len(list_back) >= 2:
         return random.sample(list_back, 2)
     else:
         return list_back
+
+
+def custom_recall(liste_tuples_pred, liste_tuples_gt, iou_match=.25): 
+    """POUR UNE IMG, liste_tuples_pred est une liste des GT, coord de GT_label; 
+    liste_tuples_gt une liste des ROI_label, coord des ROI; 
+    output est un score de recall pour 1 img, listes des IoU si TP """
+    list_score_iou = []
+    TP = 0 
+    num_gt = len(liste_tuples_gt)
+    for gt_label, gt_coord in liste_tuples_gt: # on itere sur les GT car perspective de mesure d'erreur
+        matches = [] 
+        for pred_label, pred_box in liste_tuples_pred: 
+            #si on a un match
+            if compute_iou(gt_coord, pred_box)[0] >= iou_match and int(gt_label) == int(pred_label): 
+                matches.append(compute_iou(pred_box, gt_coord)[0])
+                
+        if len(matches) > 0: #pour une ROI peut y avoir qu'une seule bonne pred
+            multiple_m = []
+            for m in matches:
+                multiple_m.append(m)
+            rang = np.argmax(multiple_m)
+            list_score_iou.append(matches[rang])
+
+            TP += 1
+        recall = TP / num_gt
+    return recall, list_score_iou
